@@ -303,6 +303,21 @@
         return 'neutral';
       }
 
+      // Pozisyon rengi (en sağ sütun)
+      function posClass(status) {
+        if (status === 'LONG') return 'ok'; // yeşil
+        if (status === 'SOFT') return 'neutral'; // sarı yapmak istersen CSS'te ayrı sınıf açarız
+        if (status === 'EXIT') return 'bad'; // kırmızı
+        return 'neutral'; // WAIT
+      }
+
+      function posLabel(status) {
+        if (status === 'LONG') return 'AL (pozisyon açık)';
+        if (status === 'SOFT') return 'AĞIRLIK AZALT';
+        if (status === 'EXIT') return 'SAT / POZİSYON KAPALI';
+        return 'BEKLE';
+      }
+
       // Binance klines: [ openTime, open, high, low, close, volume, ... ]
       async function fetchKlines(symbol) {
         const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
@@ -318,38 +333,77 @@
           const klines = await fetchKlines(coin.symbol);
           const closes = klines.map((k) => parseFloat(k[4]));
           const volumes = klines.map((k) => parseFloat(k[5]));
-          if (closes.length === 0) throw new Error('No data');
+          const n = closes.length;
+          if (n === 0) throw new Error('No data');
 
+          // EMA, RSI, VolMA dizileri
           const emaAll = {};
           for (const len of EMA_LENGTHS) {
             emaAll[len] = ema(closes, len);
           }
-
           const rsiArr = rsi(closes, RSI_LEN);
           const volMaArr = sma(volumes, VOL_MA_LEN);
 
-          const i = closes.length - 1;
-          const close = closes[i];
-          const vol = volumes[i];
-          const volMa = volMaArr[i];
+          // Her bar için sinyaller
+          const emaTrendFlags = [];
+          const rsiFlags = [];
+          const volFlags = [];
+          const longFlags = [];
+          const softFlags = [];
+          const exitFlags = [];
 
-          const ema5 = emaAll[5][i];
-          const ema8 = emaAll[8][i];
-          const ema13 = emaAll[13][i];
-          const ema20 = emaAll[20][i];
-          const ema50 = emaAll[50][i];
-          const ema100 = emaAll[100][i];
-          const ema200 = emaAll[200][i];
+          for (let i = 0; i < n; i++) {
+            const c = closes[i];
+            const e5 = emaAll[5][i];
+            const e8 = emaAll[8][i];
+            const e13 = emaAll[13][i];
+            const e20 = emaAll[20][i];
+            const r = rsiArr[i];
+            const v = volumes[i];
+            const vma = volMaArr[i];
 
-          const emaTrendOk =
-            close > ema5 && ema5 > ema8 && ema8 > ema13 && close > ema20;
+            const emaTrendOk = c > e5 && e5 > e8 && e8 > e13 && c > e20;
 
-          const rsiVal = rsiArr[i];
-          const rsiOk = rsiVal > 50;
+            const rsiOk = r > 50;
+            const volOk = isFinite(vma) && v > vma;
 
-          const volOk = isFinite(volMa) && vol > volMa;
+            // Entry
+            const longBar = emaTrendOk && rsiOk && volOk;
 
-          // 20/50/100/200 trend modu (sadece bilgi amaçlı)
+            // Soft Exit (Pine'daki ile aynı mantık)
+            const softExitBar = emaTrendOk && (e5 < e8 || c < e5);
+
+            // Hard Exit
+            const exitBar = c < e13 || (e5 < e8 && e8 < e13);
+
+            emaTrendFlags.push(emaTrendOk);
+            rsiFlags.push(rsiOk);
+            volFlags.push(volOk);
+            longFlags.push(longBar);
+            softFlags.push(softExitBar);
+            exitFlags.push(exitBar);
+          }
+
+          const last = n - 1;
+
+          const close = closes[last];
+          const vol = volumes[last];
+          const volMa = volMaArr[last];
+
+          const ema5 = emaAll[5][last];
+          const ema8 = emaAll[8][last];
+          const ema13 = emaAll[13][last];
+          const ema20 = emaAll[20][last];
+          const ema50 = emaAll[50][last];
+          const ema100 = emaAll[100][last];
+          const ema200 = emaAll[200][last];
+
+          const emaTrendOk = emaTrendFlags[last];
+          const rsiVal = rsiArr[last];
+          const rsiOk = rsiFlags[last];
+          const volOk = volFlags[last];
+
+          // 20/50/100/200 trend modu (bilgi)
           let trendMode = 'YOK';
           if (emaTrendOk) {
             if (close < ema50) {
@@ -363,7 +417,28 @@
             }
           }
 
-          const allOk = emaTrendOk && rsiOk && volOk;
+          // ---- Pozisyon state machine ----
+          let lastLong = -1;
+          let lastSoft = -1;
+          let lastExit = -1;
+
+          for (let i = 0; i < n; i++) {
+            if (longFlags[i]) lastLong = i;
+            if (softFlags[i]) lastSoft = i;
+            if (exitFlags[i]) lastExit = i;
+          }
+
+          let positionStatus = 'WAIT'; // WAIT | LONG | SOFT | EXIT
+
+          if (lastLong === -1) {
+            positionStatus = 'WAIT';
+          } else if (lastExit >= lastLong) {
+            positionStatus = 'EXIT';
+          } else if (lastSoft >= lastLong) {
+            positionStatus = 'SOFT';
+          } else {
+            positionStatus = 'LONG';
+          }
 
           return {
             coin: coin.name,
@@ -382,8 +457,8 @@
             emaTrendOk,
             rsiOk,
             volOk,
-            allOk,
             trendMode,
+            positionStatus,
           };
         } catch (err) {
           console.error('Error for', coin.symbol, err);
@@ -395,7 +470,6 @@
         const tbody = document.getElementById('scannerBody');
         tbody.innerHTML = '';
 
-        // loading satırları
         COINS.forEach((c) => {
           const tr = document.createElement('tr');
           tr.classList.add('loading-row');
@@ -405,17 +479,14 @@
 
         const results = await Promise.all(COINS.map(analyzeCoin));
 
-        // ==== SIRALAMA ALGORİTMASI (Trend > RSI > Hacim) ====
+        // Sıralama: Trend > RSI > Vol + yakınlık
         results.forEach((r) => {
           if (!r.error) {
             let score = 0;
-
-            // 1) Boolean skorlar: Trend en baskın
             if (r.emaTrendOk) score += 5;
             if (r.rsiOk) score += 2;
             if (r.volOk) score += 1;
 
-            // 2) Yakınlık skorları
             const trendDiff =
               isFinite(r.ema20) && r.ema20 !== 0
                 ? (r.close - r.ema20) / r.ema20
@@ -427,15 +498,34 @@
                 : -1;
 
             score += trendDiff * 2.0 + rsiDiff * 0.5 + volDiff * 0.2;
-
             r.score = score;
           } else {
             r.score = -1;
           }
         });
 
-        // Büyükten küçüğe sırala
-        results.sort((a, b) => b.score - a.score);
+        function positionPriority(status) {
+          // Büyükten küçüğe sıralayacağımız için
+          // en yüksek öncelik AL (LONG)
+          if (status === 'LONG') return 3; // AL
+          if (status === 'SOFT') return 2; // AĞIRLIK AZALT
+          if (status === 'WAIT') return 1; // BEKLE
+          if (status === 'EXIT') return 0; // SAT
+          return 0;
+        }
+
+        // ...
+
+        // Pozisyon tipine göre, sonra skora göre sırala
+        results.sort((a, b) => {
+          const pa = positionPriority(a.positionStatus || 'WAIT');
+          const pb = positionPriority(b.positionStatus || 'WAIT');
+
+          if (pa !== pb) {
+            return pb - pa; // önce pozisyon önceliği
+          }
+          return b.score - a.score; // aynı grupta skora göre
+        });
         tbody.innerHTML = '';
 
         for (const res of results) {
@@ -443,9 +533,9 @@
 
           if (res.error) {
             tr.innerHTML = `
-              <td>${res.coin}</td>
-              <td colspan="6" class="bad">Hata / Sembol yok (${res.symbol})</td>
-            `;
+            <td>${res.coin}</td>
+            <td colspan="6" class="bad">Hata / Sembol yok (${res.symbol})</td>
+          `;
           } else {
             const trendTextPrefix = res.emaTrendOk ? 'OK ' : 'X ';
             const trendText =
@@ -465,26 +555,26 @@
             const volText = `${res.volOk ? 'OK' : 'X'} (${formatVol(
               res.vol
             )} &gt; ${formatVol(res.volMa)})`;
-            const allText = res.allOk ? 'OK' : 'X';
 
             tr.innerHTML = `
-              <td>${res.coin}</td>
-              <td>${formatPrice(res.close)}</td>
-              <td class="${statusClass(
-                res.emaTrendOk
-              )}"><span class="trend-text">${trendText}</span></td>
-              <td class="${statusClass(res.rsiOk)}">${rsiText}</td>
-              <td class="${statusClass(res.volOk)}">${volText}</td>
-              <td>${res.trendMode}</td>
-              <td class="${statusClass(res.allOk)}">${allText}</td>
-            `;
+            <td>${res.coin}</td>
+            <td>${formatPrice(res.close)}</td>
+            <td class="${statusClass(res.emaTrendOk)}">
+              <span class="trend-text">${trendText}</span>
+            </td>
+            <td class="${statusClass(res.rsiOk)}">${rsiText}</td>
+            <td class="${statusClass(res.volOk)}">${volText}</td>
+            <td>${res.trendMode}</td>
+            <td class="${posClass(res.positionStatus)}">${posLabel(
+              res.positionStatus
+            )}</td>
+          `;
           }
 
           tbody.appendChild(tr);
         }
       }
 
-      // İlk çalıştırma + 30 sn'de bir tekrar
       runScanner();
       setInterval(runScanner, 30000);
     </script>
