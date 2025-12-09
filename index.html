@@ -37,6 +37,9 @@
         text-decoration: none;
         color: inherit;
       }
+      td a:hover {
+        text-decoration: underline;
+      }
       th {
         background: #151821;
         position: sticky;
@@ -565,7 +568,7 @@
             tr.innerHTML = `
             <td><a target="blank" href="https://www.tradingview.com/chart/2ORhnngY/?symbol=BINANCE%3A${
               res.symbol
-            }USDT">${res.coin}</a></td>
+            }">${res.coin}</a></td>
             <td>${formatPrice(res.close)}</td>
             <td class="${statusClass(res.emaTrendOk)}">
               <span class="trend-text">${trendText}</span>
