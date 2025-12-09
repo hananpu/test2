@@ -225,20 +225,41 @@
       const RSI_LEN = 14;
       const VOL_MA_LEN = 20;
       const INTERVAL = '4h';
-      const KLINE_LIMIT = 200; // history
+      const KLINE_LIMIT = 1000; // history
 
       // ================== YARDIMCI FONKSİYONLAR ==================
 
       function ema(values, length) {
         const k = 2 / (length + 1);
         const emaArr = [];
-        let prevEma = values[0];
-        emaArr.push(prevEma);
-        for (let i = 1; i < values.length; i++) {
-          const curr = values[i] * k + prevEma * (1 - k);
-          emaArr.push(curr);
-          prevEma = curr;
+        const n = values.length;
+        if (n === 0) return emaArr;
+        if (n < length) {
+          // veri yetersizse basit fallback
+          let prev = values[0];
+          emaArr.push(prev);
+          for (let i = 1; i < n; i++) {
+            prev = values[i] * k + prev * (1 - k);
+            emaArr.push(prev);
+          }
+          return emaArr;
         }
+
+        // 1) İlk length barın SMA’sı
+        let sum = 0;
+        for (let i = 0; i < length; i++) sum += values[i];
+        let prevEma = sum / length;
+
+        // İlk (length-1) bar için NaN, length-1 için SMA
+        for (let i = 0; i < length - 1; i++) emaArr.push(NaN);
+        emaArr.push(prevEma);
+
+        // 2) Sonraki barlar için klasik EMA
+        for (let i = length; i < n; i++) {
+          prevEma = values[i] * k + prevEma * (1 - k);
+          emaArr.push(prevEma);
+        }
+
         return emaArr;
       }
 
