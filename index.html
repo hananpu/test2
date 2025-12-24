@@ -79,6 +79,54 @@
       .trend-text {
         white-space: nowrap;
       }
+
+      .badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 1.2;
+        border: 1px solid #333;
+        background: #151821;
+        color: #ddd;
+        white-space: nowrap;
+      }
+      .badge-core {
+        border-color: #2a5;
+        color: #9f9;
+      }
+      .badge-growth {
+        border-color: #58a;
+        color: #bfe;
+      }
+      .badge-spec {
+        border-color: #a85;
+        color: #ffd0b0;
+      }
+      .badge-risk {
+        border-color: #c44;
+        color: #ffb3b3;
+      }
+      .badge-tag {
+        border-color: #444;
+        color: #ddd;
+        opacity: 0.95;
+      }
+
+      /* Column show/hide (Tier=2, Tags=3) */
+      #scannerTable.hide-tier th:nth-child(2),
+      #scannerTable.hide-tier td:nth-child(2) {
+        display: none;
+      }
+      #scannerTable.hide-tags th:nth-child(3),
+      #scannerTable.hide-tags td:nth-child(3) {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -102,10 +150,35 @@
       </div>
     </div>
 
+    <div
+      class="subtitle"
+      style="
+        margin-top: -6px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      "
+    >
+      <label><input id="chkCore" type="checkbox" checked /> core</label>
+      <label><input id="chkGrowth" type="checkbox" checked /> growth</label>
+      <label><input id="chkSpec" type="checkbox" /> spec</label>
+      <label
+        ><input id="chkExp" type="checkbox" /> experimental (WLFI/FF
+        dahil)</label
+      >
+
+      <span style="opacity: 0.7">|</span>
+      <label><input id="chkShowTier" type="checkbox" /> Tier</label>
+      <label><input id="chkShowTags" type="checkbox" /> Tags</label>
+    </div>
+
     <table id="scannerTable">
       <thead>
         <tr>
           <th>Coin</th>
+          <th>Tier</th>
+          <th>Tags</th>
           <th>Son Fiyat (4H close)</th>
           <th>Trend (EMA)</th>
           <th>RSI(14)</th>
@@ -126,100 +199,344 @@
     <script>
       // ================== AYARLAR ==================
 
-      const COINS = [
-        // ================== MAJORS (Büyükler) ==================
-        { name: 'BTC', symbol: 'BTCUSDT' }, // Bitcoin
-        { name: 'ETH', symbol: 'ETHUSDT' }, // Ethereum
-        { name: 'BNB', symbol: 'BNBUSDT' }, // BNB Chain
-        { name: 'SOL', symbol: 'SOLUSDT' }, // Solana
-        { name: 'XRP', symbol: 'XRPUSDT' }, // XRP
-        { name: 'LTC', symbol: 'LTCUSDT' }, // Litecoin
-        { name: 'ADA', symbol: 'ADAUSDT' }, // Cardano
-        { name: 'TRX', symbol: 'TRXUSDT' }, // Tron
+      // ================== COIN DB (metadata'lı) ==================
+      // ================== COIN DB (metadata'lı) ==================
+      const COIN_DB = [
+        // ---- Core Majors ----
+        { name: 'BTC', symbol: 'BTCUSDT', tier: 'core', tags: ['major'] },
+        { name: 'ETH', symbol: 'ETHUSDT', tier: 'core', tags: ['major'] },
+        {
+          name: 'BNB',
+          symbol: 'BNBUSDT',
+          tier: 'core',
+          tags: ['major', 'exchange'],
+        },
+        { name: 'SOL', symbol: 'SOLUSDT', tier: 'core', tags: ['major', 'L1'] },
+        {
+          name: 'XRP',
+          symbol: 'XRPUSDT',
+          tier: 'core',
+          tags: ['major', 'payments'],
+        },
 
-        // ================== L1 / L0 / GENEL ALT YAPI ==================
-        { name: 'AVAX', symbol: 'AVAXUSDT' }, // Avalanche
-        { name: 'NEAR', symbol: 'NEARUSDT' }, // NEAR
-        { name: 'DOT', symbol: 'DOTUSDT' }, // Polkadot
-        { name: 'SUI', symbol: 'SUIUSDT' }, // Sui
-        { name: 'TON', symbol: 'TONUSDT' }, // Ton
-        { name: 'TIA', symbol: 'TIAUSDT' }, // Celestia
-        { name: 'APT', symbol: 'APTUSDT' }, // Aptos
-        { name: 'ICP', symbol: 'ICPUSDT' }, // Internet Computer
-        { name: 'SEI', symbol: 'SEIUSDT' }, // Sei
-        { name: 'NEO', symbol: 'NEOUSDT' }, // Neo
-        { name: 'EGLD', symbol: 'EGLDUSDT' }, // MultiversX (Elrond)
-        { name: 'ALGO', symbol: 'ALGOUSDT' }, // Algorand
-        { name: 'XLM', symbol: 'XLMUSDT' }, // Stellar
-        { name: 'VET', symbol: 'VETUSDT' }, // VeChain
-        { name: 'FIL', symbol: 'FILUSDT' }, // Filecoin
-        { name: 'AR', symbol: 'ARUSDT' }, // Arweave
-        { name: 'STX', symbol: 'STXUSDT' }, // Stacks
-        { name: 'KAVA', symbol: 'KAVAUSDT' }, // Kava
-        { name: 'DASH', symbol: 'DASHUSDT' }, // Eski ama proje var
+        // ---- Growth (oturmuş ama daha volatil) ----
+        { name: 'ADA', symbol: 'ADAUSDT', tier: 'growth', tags: ['L1'] },
+        { name: 'TRX', symbol: 'TRXUSDT', tier: 'growth', tags: ['L1'] },
+        { name: 'DOGE', symbol: 'DOGEUSDT', tier: 'growth', tags: ['meme'] },
+        {
+          name: 'LTC',
+          symbol: 'LTCUSDT',
+          tier: 'growth',
+          tags: ['legacy', 'payments'],
+        },
 
-        // ================== L2 / SCALING ==================
-        { name: 'ARB', symbol: 'ARBUSDT' }, // Arbitrum
-        { name: 'OP', symbol: 'OPUSDT' }, // Optimism
-        { name: 'ZK', symbol: 'ZKUSDT' }, // zkSync
-        { name: 'STRK', symbol: 'STRKUSDT' }, // Starknet
-        { name: 'POL', symbol: 'POLUSDT' }, // Polygon ekosistem yönetişim
-        { name: 'LINEA', symbol: 'LINEAUSDT' }, // Linea (varsa, yoksa bu satırı silersin)
-        { name: 'IMX', symbol: 'IMXUSDT' }, // Immutable X (gaming L2)
+        // ---- L1/L0 ----
+        { name: 'AVAX', symbol: 'AVAXUSDT', tier: 'growth', tags: ['L1'] },
+        { name: 'NEAR', symbol: 'NEARUSDT', tier: 'growth', tags: ['L1'] },
+        { name: 'DOT', symbol: 'DOTUSDT', tier: 'growth', tags: ['L0'] },
+        { name: 'ATOM', symbol: 'ATOMUSDT', tier: 'growth', tags: ['L0'] },
+        { name: 'SUI', symbol: 'SUIUSDT', tier: 'growth', tags: ['L1'] },
+        { name: 'TON', symbol: 'TONUSDT', tier: 'growth', tags: ['L1'] },
+        {
+          name: 'TIA',
+          symbol: 'TIAUSDT',
+          tier: 'growth',
+          tags: ['modular', 'da'],
+        },
+        { name: 'APT', symbol: 'APTUSDT', tier: 'growth', tags: ['L1'] },
+        {
+          name: 'ICP',
+          symbol: 'ICPUSDT',
+          tier: 'growth',
+          tags: ['compute', 'L1'],
+        },
+        {
+          name: 'SEI',
+          symbol: 'SEIUSDT',
+          tier: 'spec',
+          tags: ['L1'],
+          risk: ['new'],
+        },
 
-        // ================== DEFi / DEX / LENDING ==================
-        { name: 'UNI', symbol: 'UNIUSDT' }, // Uniswap
-        { name: 'FF', symbol: 'FFUSDT' }, // FF
-        { name: 'WLFI', symbol: 'WLFIUSDT' }, // WLFI
-        { name: 'AAVE', symbol: 'AAVEUSDT' }, // Aave
-        { name: 'SNX', symbol: 'SNXUSDT' }, // Synthetix
-        { name: 'GMX', symbol: 'GMXUSDT' }, // GMX perp DEX
-        { name: 'CAKE', symbol: 'CAKEUSDT' }, // PancakeSwap
-        { name: 'COMP', symbol: 'COMPUSDT' }, // Compound
-        { name: 'DYDX', symbol: 'DYDXUSDT' }, // dYdX
-        { name: '1INCH', symbol: '1INCHUSDT' }, // 1inch DEX aggregator
-        { name: 'RAY', symbol: 'RAYUSDT' }, // Raydium
-        { name: 'CRV', symbol: 'CRVUSDT' }, // Curve
-        { name: 'PENDLE', symbol: 'PENDLEUSDT' }, // Pendle
-        { name: 'ONDO', symbol: 'ONDOUSDT' }, // ONDO RWA
-        { name: 'RUNE', symbol: 'RUNEUSDT' }, // THORChain
-        { name: 'INJ', symbol: 'INJUSDT' }, // Injective
+        // Storage / BTC eco
+        { name: 'FIL', symbol: 'FILUSDT', tier: 'growth', tags: ['storage'] },
+        { name: 'AR', symbol: 'ARUSDT', tier: 'growth', tags: ['storage'] },
+        {
+          name: 'STX',
+          symbol: 'STXUSDT',
+          tier: 'growth',
+          tags: ['btc_ecosystem'],
+        },
 
-        // ================== LSD / RESTAKING / YIELD ==================
-        { name: 'LDO', symbol: 'LDOUSDT' }, // Lido (sen LIDO demiştin, Binance: LDO)
-        { name: 'ETHFI', symbol: 'ETHFIUSDT' }, // ether.fi
-        { name: 'ENA', symbol: 'ENAUSDT' }, // Ethena
+        // Legacy (core dışı)
+        { name: 'XLM', symbol: 'XLMUSDT', tier: 'spec', tags: ['legacy'] },
+        { name: 'ALGO', symbol: 'ALGOUSDT', tier: 'spec', tags: ['legacy'] },
+        { name: 'VET', symbol: 'VETUSDT', tier: 'spec', tags: ['legacy'] },
+        { name: 'KAVA', symbol: 'KAVAUSDT', tier: 'spec', tags: ['defi'] },
+        { name: 'DASH', symbol: 'DASHUSDT', tier: 'spec', tags: ['legacy'] },
+        { name: 'NEO', symbol: 'NEOUSDT', tier: 'spec', tags: ['legacy'] },
+        { name: 'EGLD', symbol: 'EGLDUSDT', tier: 'spec', tags: ['L1'] },
 
-        // ================== ORACLE / DATA / INDEX ==================
-        { name: 'LINK', symbol: 'LINKUSDT' }, // Chainlink
-        { name: 'PYTH', symbol: 'PYTHUSDT' }, // Pyth Network
-        { name: 'BAND', symbol: 'BANDUSDT' }, // Band Protocol
-        { name: 'GRT', symbol: 'GRTUSDT' }, // The Graph
+        // ---- L2 / Scaling ----
+        {
+          name: 'ARB',
+          symbol: 'ARBUSDT',
+          tier: 'core',
+          tags: ['L2', 'ethereum'],
+        },
+        {
+          name: 'OP',
+          symbol: 'OPUSDT',
+          tier: 'core',
+          tags: ['L2', 'ethereum'],
+        },
+        {
+          name: 'POL',
+          symbol: 'POLUSDT',
+          tier: 'growth',
+          tags: ['L2', 'ethereum'],
+        },
+        {
+          name: 'STRK',
+          symbol: 'STRKUSDT',
+          tier: 'growth',
+          tags: ['L2', 'zk'],
+        },
+        {
+          name: 'ZK',
+          symbol: 'ZKUSDT',
+          tier: 'spec',
+          tags: ['L2', 'zk'],
+          risk: ['new'],
+        },
+        {
+          name: 'LINEA',
+          symbol: 'LINEAUSDT',
+          tier: 'spec',
+          tags: ['L2', 'zk'],
+          risk: ['new'],
+        },
+        {
+          name: 'IMX',
+          symbol: 'IMXUSDT',
+          tier: 'growth',
+          tags: ['L2', 'gaming'],
+        },
 
-        // ================== AI / MACHINE LEARNING / DATA ==================
-        { name: 'FET', symbol: 'FETUSDT' }, // Fetch.ai / ASI
-        { name: 'TAO', symbol: 'TAOUSDT' }, // Bittensor
-        { name: 'RENDER', symbol: 'RENDERUSDT' }, // Render Network (Binance sembolü RNDR)
-        { name: 'ARKM', symbol: 'ARKMUSDT' }, // Arkham
+        // ---- DeFi ----
+        { name: 'UNI', symbol: 'UNIUSDT', tier: 'core', tags: ['defi', 'dex'] },
+        {
+          name: 'AAVE',
+          symbol: 'AAVEUSDT',
+          tier: 'core',
+          tags: ['defi', 'lending'],
+        },
+        {
+          name: 'SNX',
+          symbol: 'SNXUSDT',
+          tier: 'growth',
+          tags: ['defi', 'perps'],
+        },
+        {
+          name: 'GMX',
+          symbol: 'GMXUSDT',
+          tier: 'growth',
+          tags: ['defi', 'perps'],
+        },
+        {
+          name: 'DYDX',
+          symbol: 'DYDXUSDT',
+          tier: 'growth',
+          tags: ['defi', 'perps'],
+        },
+        {
+          name: 'COMP',
+          symbol: 'COMPUSDT',
+          tier: 'spec',
+          tags: ['defi', 'lending'],
+        },
+        {
+          name: '1INCH',
+          symbol: '1INCHUSDT',
+          tier: 'spec',
+          tags: ['defi', 'aggregator'],
+        },
+        {
+          name: 'RAY',
+          symbol: 'RAYUSDT',
+          tier: 'spec',
+          tags: ['defi', 'solana'],
+        },
+        {
+          name: 'CRV',
+          symbol: 'CRVUSDT',
+          tier: 'growth',
+          tags: ['defi', 'stableswap'],
+        },
+        {
+          name: 'CVX',
+          symbol: 'CVXUSDT',
+          tier: 'growth',
+          tags: ['defi', 'curve'],
+        },
+        {
+          name: 'PENDLE',
+          symbol: 'PENDLEUSDT',
+          tier: 'growth',
+          tags: ['defi', 'yield'],
+        },
+        { name: 'ONDO', symbol: 'ONDOUSDT', tier: 'growth', tags: ['rwa'] },
+        {
+          name: 'RUNE',
+          symbol: 'RUNEUSDT',
+          tier: 'growth',
+          tags: ['defi', 'cross_chain'],
+        },
+        {
+          name: 'INJ',
+          symbol: 'INJUSDT',
+          tier: 'growth',
+          tags: ['defi', 'perps'],
+        },
 
-        // ================== RWA / TOKENİZE VARLIK / KURUMSAL ==================
-        //{ name: 'ONDO', symbol: 'ONDOUSDT' }, // Tekrar etmemek istersen yukarıdakini bırak yeter
-        // İstersen başka RWA coinleri buraya ekleyebilirsin (NXRA vs.), ben çöp eklemedim.
+        // ---- LSD / Restaking ----
+        { name: 'LDO', symbol: 'LDOUSDT', tier: 'core', tags: ['lsd'] },
+        {
+          name: 'ETHFI',
+          symbol: 'ETHFIUSDT',
+          tier: 'growth',
+          tags: ['restaking'],
+        },
+        {
+          name: 'ENA',
+          symbol: 'ENAUSDT',
+          tier: 'growth',
+          tags: ['defi', 'stable'],
+        },
 
-        // ================== GAMING / METAVERSE ==================
-        { name: 'SAND', symbol: 'SANDUSDT' }, // The Sandbox
-        { name: 'MANA', symbol: 'MANAUSDT' }, // Decentraland
-        { name: 'AXS', symbol: 'AXSUSDT' }, // Axie Infinity
-        //{ name: 'IMX', symbol: 'IMXUSDT' }, // Zaten yukarıda L2’de de var ama gaming L2 olduğu için burada da anlamlı
+        // ---- Oracle / Data ----
+        { name: 'LINK', symbol: 'LINKUSDT', tier: 'core', tags: ['oracle'] },
+        { name: 'PYTH', symbol: 'PYTHUSDT', tier: 'growth', tags: ['oracle'] },
+        {
+          name: 'BAND',
+          symbol: 'BANDUSDT',
+          tier: 'spec',
+          tags: ['oracle', 'legacy'],
+        },
+        { name: 'GRT', symbol: 'GRTUSDT', tier: 'growth', tags: ['data'] },
 
-        // ================== NAME SERVICE / ALTYAPI ==================
-        { name: 'ENS', symbol: 'ENSUSDT' }, // Ethereum Name Service
+        // ---- AI / Compute ----
+        { name: 'FET', symbol: 'FETUSDT', tier: 'growth', tags: ['ai'] },
+        { name: 'TAO', symbol: 'TAOUSDT', tier: 'growth', tags: ['ai'] },
+        {
+          name: 'RENDER',
+          symbol: 'RENDERUSDT',
+          tier: 'growth',
+          tags: ['compute'],
+        },
+        { name: 'ARKM', symbol: 'ARKMUSDT', tier: 'spec', tags: ['data'] },
 
-        //
-        { name: 'DOGE', symbol: 'DOGEUSDT' }, // DOGE
-        { name: 'ENJ', symbol: 'ENJUSDT' }, // ENJ
+        // ---- Gaming/Meta (spec taraf) ----
+        {
+          name: 'SAND',
+          symbol: 'SANDUSDT',
+          tier: 'spec',
+          tags: ['gaming', 'meta'],
+        },
+        {
+          name: 'MANA',
+          symbol: 'MANAUSDT',
+          tier: 'spec',
+          tags: ['gaming', 'meta'],
+        },
+        { name: 'AXS', symbol: 'AXSUSDT', tier: 'spec', tags: ['gaming'] },
+        {
+          name: 'ENJ',
+          symbol: 'ENJUSDT',
+          tier: 'spec',
+          tags: ['gaming', 'legacy'],
+        },
+
+        // ---- Infra ----
+        {
+          name: 'ENS',
+          symbol: 'ENSUSDT',
+          tier: 'growth',
+          tags: ['infra', 'identity'],
+        },
       ];
 
+      // Core’dan ayrı: “riskli/deneysel”
+      const EXPERIMENTAL = [
+        {
+          name: 'WLFI',
+          symbol: 'WLFIUSDT',
+          tier: 'spec',
+          tags: ['defi'],
+          risk: ['seed_tag'],
+        },
+        {
+          name: 'FF',
+          symbol: 'FFUSDT',
+          tier: 'spec',
+          tags: ['defi'],
+          risk: ['new'],
+        },
+      ];
+
+      // Varsayılan: core+growth taransın, spec kapalı, experimental kapalı
+      let SCAN_SETTINGS = {
+        core: true,
+        growth: true,
+        spec: false,
+        experimental: false,
+      };
+
+      function getActiveCoins() {
+        const base = COIN_DB.filter((c) => SCAN_SETTINGS[c.tier] === true);
+        return SCAN_SETTINGS.experimental ? [...base, ...EXPERIMENTAL] : base;
+      }
+
+      function bindFilters() {
+        const $ = (id) => document.getElementById(id);
+
+        const applyColumns = () => {
+          const table = $('scannerTable');
+          if (!table) return;
+
+          const showTier = $('chkShowTier')?.checked ?? true;
+          const showTags = $('chkShowTags')?.checked ?? true;
+
+          table.classList.toggle('hide-tier', !showTier);
+          table.classList.toggle('hide-tags', !showTags);
+        };
+
+        const apply = () => {
+          SCAN_SETTINGS = {
+            core: $('chkCore')?.checked ?? true,
+            growth: $('chkGrowth')?.checked ?? true,
+            spec: $('chkSpec')?.checked ?? false,
+            experimental: $('chkExp')?.checked ?? false,
+          };
+          applyColumns();
+          runScanner();
+        };
+
+        // Initial apply (in case defaults differ)
+        applyColumns();
+
+        [
+          'chkCore',
+          'chkGrowth',
+          'chkSpec',
+          'chkExp',
+          'chkShowTier',
+          'chkShowTags',
+        ].forEach((id) => {
+          const el = $(id);
+          if (el) el.addEventListener('change', apply);
+        });
+      }
       const EMA_LENGTHS = [5, 8, 13, 20, 50, 100, 200];
       const RSI_LEN = 14;
       const VOL_MA_LEN = 20;
@@ -347,6 +664,48 @@
         return 'BEKLE';
       }
 
+      function escapeHtml(s) {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+            }[c])
+        );
+      }
+
+      function renderTierBadge(tier) {
+        const t = tier || 'spec';
+        const tierClass =
+          t === 'core'
+            ? 'badge-core'
+            : t === 'growth'
+            ? 'badge-growth'
+            : 'badge-spec';
+        return `<span class="badge ${tierClass}">${escapeHtml(t)}</span>`;
+      }
+
+      function renderTagBadges(tags, risk) {
+        const ts = Array.isArray(tags) ? tags : [];
+        const rs = Array.isArray(risk) ? risk : [];
+        const tagBadges = ts
+          .slice(0, 6)
+          .map((t) => `<span class="badge badge-tag">${escapeHtml(t)}</span>`)
+          .join('');
+        const more =
+          ts.length > 6
+            ? `<span class="badge badge-tag">+${ts.length - 6}</span>`
+            : '';
+        const riskBadges = rs
+          .map((r) => `<span class="badge badge-risk">${escapeHtml(r)}</span>`)
+          .join('');
+        return `<div class="badges">${tagBadges}${more}${riskBadges}</div>`;
+      }
+
       // Binance klines: [ openTime, open, high, low, close, volume, ... ]
       async function fetchKlines(symbol) {
         const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
@@ -472,6 +831,9 @@
           return {
             coin: coin.name,
             symbol: coin.symbol,
+            tier: coin.tier,
+            tags: coin.tags,
+            risk: coin.risk || [],
             close,
             ema5,
             ema8,
@@ -491,7 +853,14 @@
           };
         } catch (err) {
           console.error('Error for', coin.symbol, err);
-          return { coin: coin.name, symbol: coin.symbol, error: true };
+          return {
+            coin: coin.name,
+            symbol: coin.symbol,
+            tier: coin.tier,
+            tags: coin.tags,
+            risk: coin.risk || [],
+            error: true,
+          };
         }
       }
 
@@ -499,14 +868,21 @@
         const tbody = document.getElementById('scannerBody');
         tbody.innerHTML = '';
 
-        COINS.forEach((c) => {
+        const activeCoins = getActiveCoins();
+
+        activeCoins.forEach((c) => {
           const tr = document.createElement('tr');
           tr.classList.add('loading-row');
-          tr.innerHTML = `<td>${c.name}</td><td colspan="6">Yükleniyor...</td>`;
+          tr.innerHTML = `
+            <td>${c.name}</td>
+            <td>${renderTierBadge(c.tier)}</td>
+            <td>${renderTagBadges(c.tags, c.risk)}</td>
+            <td colspan="6">Yükleniyor...</td>
+          `;
           tbody.appendChild(tr);
         });
 
-        const results = await Promise.all(COINS.map(analyzeCoin));
+        const results = await Promise.all(activeCoins.map(analyzeCoin));
 
         // Sıralama: Trend > RSI > Vol + yakınlık
         results.forEach((r) => {
@@ -563,6 +939,8 @@
           if (res.error) {
             tr.innerHTML = `
             <td>${res.coin}</td>
+            <td>${renderTierBadge(res.tier)}</td>
+            <td>${renderTagBadges(res.tags, res.risk)}</td>
             <td colspan="6" class="bad">Hata / Sembol yok (${res.symbol})</td>
           `;
           } else {
@@ -589,6 +967,8 @@
             <td><a target="_blank" href="https://www.tradingview.com/chart/2ORhnngY/?symbol=BINANCE%3A${
               res.symbol
             }">${res.coin}</a></td>
+            <td>${renderTierBadge(res.tier)}</td>
+            <td>${renderTagBadges(res.tags, res.risk)}</td>
             <td>${formatPrice(res.close)}</td>
             <td class="${statusClass(res.emaTrendOk)}">
               <span class="trend-text">${trendText}</span>
@@ -606,6 +986,7 @@
         }
       }
 
+      bindFilters();
       runScanner();
       setInterval(runScanner, 30000);
     </script>
