@@ -200,7 +200,14 @@
       // ================== AYARLAR ==================
 
       // ================== COIN DB (metadata'lı) ==================
-      // ================== COIN DB (metadata'lı) ==================
+      /**
+       * tier:
+       *  - core   : Majors + oturmuş altyapı/DeFi (izleme listemin omurgası)
+       *  - growth : Güçlü ama daha volatil / döngüsel (core kadar “sakin” değil)
+       *  - spec   : Erken aşama / seed tag / oturmamış (core’dan ayrı tutulur)
+       *
+       * categories: serbest etiket seti (filtrelemek için)
+       */
       const COIN_DB = [
         // ---- Core Majors ----
         { name: 'BTC', symbol: 'BTCUSDT', tier: 'core', tags: ['major'] },
