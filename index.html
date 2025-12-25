@@ -118,6 +118,33 @@
         opacity: 0.95;
       }
 
+      /* Tag filter UI */
+      .filter-select {
+        background: #151821;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 4px 8px;
+        font-size: 12px;
+        min-width: 180px;
+      }
+      .filter-select option {
+        margin: 2px 0;
+        padding: 2px 0;
+      }
+      .filter-btn {
+        background: #151821;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .filter-btn:hover {
+        border-color: #555;
+      }
+
       /* Column show/hide (Tier=2, Tags=3) */
       #scannerTable.hide-tier th:nth-child(2),
       #scannerTable.hide-tier td:nth-child(2) {
@@ -171,6 +198,27 @@
       <span style="opacity: 0.7">|</span>
       <label><input id="chkShowTier" type="checkbox" /> Tier</label>
       <label><input id="chkShowTags" type="checkbox" /> Tags</label>
+
+      <span style="opacity: 0.7">|</span>
+      <span style="opacity: 0.9">Tag filtre:</span>
+      <select
+        id="tagSelect"
+        class="filter-select"
+        multiple
+        title="Tekli mod: son seçtiğin tag. Multiple mod: seçtiklerinden herhangi biri (OR) uygulanır."
+      ></select>
+      <label
+        title="Birden fazla tag seçip OR filtresi uygula (seçtiklerinden herhangi biri)"
+        ><input id="chkTagMulti" type="checkbox" /> Multiple</label
+      >
+      <button
+        id="btnClearTags"
+        class="filter-btn"
+        type="button"
+        title="Tag seçimini temizle"
+      >
+        Temizle
+      </button>
     </div>
 
     <table id="scannerTable">
@@ -491,7 +539,7 @@
         },
       ];
 
-      // Varsayılan: core+growth taransın, spec acik, experimental acik
+      // Varsayılan: core+growth taransın, spec kapalı, experimental kapalı
       let SCAN_SETTINGS = {
         core: true,
         growth: true,
@@ -499,9 +547,150 @@
         experimental: true,
       };
 
-      function getActiveCoins() {
+      // Tag filtresi (seçim yoksa filtre yok)
+      let TAG_FILTER = { selected: [], last: null }; // seçili tag'ler (last: tekli modda son tıklanan)
+      let TAG_MULTI = false; // Multiple modu: seçili tag'lerin HERHANGİ BİRİ coin'de olmalı (union)
+
+      function normTag(t) {
+        return String(t || '')
+          .trim()
+          .toLowerCase();
+      }
+
+      function getCoinsByTier() {
         const base = COIN_DB.filter((c) => SCAN_SETTINGS[c.tier] === true);
         return SCAN_SETTINGS.experimental ? [...base, ...EXPERIMENTAL] : base;
+      }
+
+      function applyTagFilter(coins) {
+        const selected = TAG_FILTER.selected;
+        if (!selected || selected.length === 0) return coins;
+
+        const isMulti = TAG_MULTI === true;
+
+        // Tekli mod: sadece SON seçilen tag ile filtrele
+        // Multiple mod: seçilen tag'lerden HERHANGİ BİRİ coin'de varsa dahil et (union / OR)
+        const want = isMulti
+          ? selected
+          : [TAG_FILTER.last || selected[selected.length - 1]];
+
+        return coins.filter((c) => {
+          const tags = (c.tags || []).map(normTag);
+          if (!tags.length) return false;
+
+          return want.some((s) => tags.includes(s));
+        });
+      }
+
+      function populateTagSelect(coins) {
+        const sel = document.getElementById('tagSelect');
+        if (!sel) return;
+
+        const map = new Map(); // norm -> label
+        for (const c of coins) {
+          for (const t of c.tags || []) {
+            const nt = normTag(t);
+            if (!nt) continue;
+            if (!map.has(nt)) map.set(nt, String(t));
+          }
+        }
+
+        const prev = new Set(TAG_FILTER.selected || []);
+        const available = new Set(map.keys());
+        TAG_FILTER.selected = [...prev].filter((x) => available.has(x));
+
+        const entries = [...map.entries()].sort((a, b) =>
+          a[1].localeCompare(b[1])
+        );
+        sel.innerHTML = '';
+        for (const [nt, label] of entries) {
+          const opt = document.createElement('option');
+          opt.value = nt;
+          opt.textContent = label;
+          opt.selected = TAG_FILTER.selected.includes(nt);
+          sel.appendChild(opt);
+        }
+      }
+
+      function bindTagFilterControls() {
+        const sel = document.getElementById('tagSelect');
+        const chkMulti = document.getElementById('chkTagMulti');
+        const btnClear = document.getElementById('btnClearTags');
+
+        const apply = () => {
+          TAG_FILTER.selected = sel
+            ? Array.from(sel.selectedOptions).map((o) => o.value)
+            : [];
+          TAG_MULTI = !!(chkMulti && chkMulti.checked);
+
+          // Tekli modda: UI'da birden fazla seçili kalmışsa, SON tıklananı koru
+          if (!TAG_MULTI) {
+            const last = TAG_FILTER.last;
+            if (last) {
+              TAG_FILTER.selected = [last];
+              if (sel) {
+                Array.from(sel.options).forEach(
+                  (o) => (o.selected = o.value === last)
+                );
+              }
+            } else if (TAG_FILTER.selected.length > 1) {
+              const keep = TAG_FILTER.selected[TAG_FILTER.selected.length - 1];
+              TAG_FILTER.selected = [keep];
+              if (sel) {
+                Array.from(sel.options).forEach(
+                  (o) => (o.selected = o.value === keep)
+                );
+              }
+              TAG_FILTER.last = keep;
+            }
+          }
+
+          runScanner();
+        };
+
+        if (sel)
+          sel.addEventListener('change', () => {
+            const lastOpt = sel.selectedOptions[sel.selectedOptions.length - 1];
+            if (lastOpt) TAG_FILTER.last = lastOpt.value;
+            apply();
+          });
+        // Kolay çoklu seçim: CTRL/CMD gerekmeden option'a tıklayınca toggle et
+        if (sel)
+          sel.addEventListener('mousedown', (e) => {
+            const opt = e.target;
+            if (!opt || opt.tagName !== 'OPTION') return;
+
+            e.preventDefault();
+
+            const isMulti = !!(chkMulti && chkMulti.checked);
+
+            if (!isMulti) {
+              // Multiple kapalı → tek seçim
+              Array.from(sel.options).forEach((o) => (o.selected = false));
+              opt.selected = true;
+            } else {
+              // Multiple açık → toggle multi
+              opt.selected = !opt.selected;
+            }
+
+            TAG_FILTER.last = opt.value;
+
+            apply();
+          });
+        if (chkMulti) chkMulti.addEventListener('change', apply);
+        if (btnClear)
+          btnClear.addEventListener('click', () => {
+            if (sel)
+              Array.from(sel.options).forEach((o) => (o.selected = false));
+            TAG_FILTER.selected = [];
+            TAG_FILTER.last = null;
+            runScanner();
+          });
+      }
+
+      function getActiveCoins() {
+        const coins = getCoinsByTier();
+        return applyTagFilter(coins);
       }
 
       function bindFilters() {
@@ -526,11 +715,13 @@
             experimental: $('chkExp')?.checked ?? false,
           };
           applyColumns();
+          populateTagSelect(getCoinsByTier());
           runScanner();
         };
 
         // Initial apply (in case defaults differ)
         applyColumns();
+        populateTagSelect(getCoinsByTier());
 
         [
           'chkCore',
@@ -994,6 +1185,7 @@
       }
 
       bindFilters();
+      bindTagFilterControls();
       runScanner();
       setInterval(runScanner, 30000);
     </script>
